@@ -1,7 +1,7 @@
 ---
 services: storage
 platforms: dotnet
-author:
+author: vipinsehgal
 ---
 
 # Azure Storage: Files
