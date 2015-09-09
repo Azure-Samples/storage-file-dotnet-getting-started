@@ -19,6 +19,7 @@ get a FREE trial account <a href="http://go.microsoft.com/fwlink/?LinkId=330212"
 This sample can be run against Microsoft Azure Storage Service by updating the App.Config with your AccountName and AccountKey.
 
 To run the sample using the Storage Service
+
 1. Create a Storage Account through the Azure Portal and provide your [AccountName] and [AccountKey] in the App.Config file.
 2. Set breakpoints and run the project using F10.
 
