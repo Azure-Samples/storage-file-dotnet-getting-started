@@ -4,7 +4,7 @@ platforms: dotnet
 author: robinsh
 ---
 
-# Azure Storage: Files
+# Getting Started with Azure File Service in .NET
 
 Demonstrates how to use the File Storage service.
 
