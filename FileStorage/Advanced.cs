@@ -175,10 +175,9 @@ namespace FileStorage
             FileServiceProperties originalProperties = await fileClient.GetServicePropertiesAsync();
             try
             {
-                // Set CORS rules
-                Console.WriteLine("Set CORS rules");
+                // Add CORS rule
+                Console.WriteLine("Add CORS rule");
 
-                CorsProperties cors = new CorsProperties();
                 CorsRule corsRule = new CorsRule
                 {
                     AllowedHeaders = new List<string> { "*" },
@@ -188,9 +187,8 @@ namespace FileStorage
                     MaxAgeInSeconds = 3600
                 };
 
-                cors.CorsRules.Add(corsRule);
                 FileServiceProperties serviceProperties = await fileClient.GetServicePropertiesAsync();
-                serviceProperties.Cors = cors;
+                serviceProperties.Cors.CorsRules.Add(corsRule);
                 await fileClient.SetServicePropertiesAsync(serviceProperties);
             }
             finally
