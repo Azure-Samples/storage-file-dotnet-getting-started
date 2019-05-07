@@ -15,16 +15,13 @@
 //----------------------------------------------------------------------------------
 
 using Microsoft.Azure;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.File;
+using Microsoft.Azure.Storage;
+using Microsoft.Azure.Storage.File;
+using Microsoft.Azure.Storage.File.Protocol;
+using Microsoft.Azure.Storage.Shared.Protocol;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Microsoft.WindowsAzure.Storage.File;
-using Microsoft.WindowsAzure.Storage.File.Protocol;
-using Microsoft.WindowsAzure.Storage.Shared.Protocol;
 
 
 // Create several shares, then show how to list them
@@ -42,7 +39,7 @@ namespace FileStorage
 
             // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-            CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("StorageConnectionString"));
 
             Console.WriteLine("Instantiating file client.");
             Console.WriteLine(string.Empty);
@@ -374,9 +371,11 @@ namespace FileStorage
         private static async Task DirectoryMetadataSample(CloudFileClient cloudFileClient)
         {
             Console.WriteLine();
-            // Create the share name -- use a guid in the name so it's unique.
+
+            // Create the share name -- use a GUID in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
             CloudFileShare share = cloudFileClient.GetShareReference(shareName);
+
             try
             {
                 // Create share
@@ -385,21 +384,24 @@ namespace FileStorage
 
                 CloudFileDirectory rootDirectory = share.GetRootDirectoryReference();
 
-                // Create directory
-                Console.WriteLine("Create directory");
-                await rootDirectory.CreateIfNotExistsAsync();
+                // Get a directory reference
+                CloudFileDirectory sampleDirectory = rootDirectory.GetDirectoryReference("sample-directory");
+
+                Console.WriteLine("Create the directory");
+                sampleDirectory.CreateIfNotExists();
 
                 // Set directory metadata
                 Console.WriteLine("Set directory metadata");
-                rootDirectory.Metadata.Add("key1", "value1");
-                rootDirectory.Metadata.Add("key2", "value2");
-                await rootDirectory.SetMetadataAsync();
+                sampleDirectory.Metadata.Add("key1", "value1");
+                sampleDirectory.Metadata.Add("key2", "value2");
+                await sampleDirectory.SetMetadataAsync();
 
                 // Fetch directory attributes
                 // in this case this call is not need but is included for demo purposes
-                await rootDirectory.FetchAttributesAsync();
+                await sampleDirectory.FetchAttributesAsync();
+
                 Console.WriteLine("Get directory metadata:");
-                foreach (var keyValue in rootDirectory.Metadata)
+                foreach (var keyValue in sampleDirectory.Metadata)
                 {
                     Console.WriteLine("    {0}: {1}", keyValue.Key, keyValue.Value);
                 }

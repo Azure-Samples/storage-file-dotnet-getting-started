@@ -46,7 +46,7 @@ namespace FileStorage
         //      2. Set breakpoints and run the project using F10. 
         // 
         // *************************************************************************************************************************        
-        static void Main(string[] args)
+        static void Main()
         {
             Console.WriteLine("Azure Storage File Sample\n ");
 
