@@ -39,8 +39,6 @@ namespace FileStorage
             CloudFileDirectory fileDirectory = null;
             string destFile = null;
 
-
-
             CloudBlob targetBlob = null;
             CloudFileShare cloudFileShare = null;
             string downloadFolder = null;
@@ -141,7 +139,7 @@ namespace FileStorage
                 if (File.Exists(sourceFile))
                 {
                     // Upload from the local file to the file share in azure.
-                    await cloudFile.UploadFromFileAsync(sourceFile, FileMode.OpenOrCreate);
+                    await cloudFile.UploadFromFileAsync(sourceFile);
                     Console.WriteLine("    Successfully uploaded file to share.");
                 }
                 else
@@ -210,7 +208,7 @@ namespace FileStorage
 
                 // Set up the name and path of the local file.
                 string sourceFileCopy = Path.Combine(localFolder, testFile);
-                await cloudFileCopy.UploadFromFileAsync(sourceFileCopy, FileMode.OpenOrCreate);
+                await cloudFileCopy.UploadFromFileAsync(sourceFileCopy);
                 Console.WriteLine("    Successfully uploaded file to share.");
 
                 // Copy the file to blob storage.
@@ -249,7 +247,7 @@ namespace FileStorage
                 copyId = await targetBlob.StartCopyAsync(fileSasUri);
                 Console.WriteLine("   File copy started successfully. copyID = {0}", copyId);
 
-                // Abort the copy of the file to blob storage.
+/*              // Abort the copy of the file to blob storage.
                 // Note that you call Abort on the target object, i.e. the blob, not the file.
                 // If you were copying from one file to another on the file share, the target object would be a file.
                 Console.WriteLine("Check the copy status. If pending, cancel the copy operation");
@@ -274,7 +272,7 @@ namespace FileStorage
                     // If this happens, try a larger file.
                     Console.WriteLine("    Cancellation of copy not performed; copy has already finished.");
                 }
-
+*/
                 // Now clean up after yourself.
                 Console.WriteLine("Deleting the files from the file share.");
 
@@ -403,14 +401,14 @@ namespace FileStorage
 
 
                 // Delete the file with the ranges in it.
+                destFile = "rangeops.txt";
                 cloudFile = fileDirectory.GetFileReference(destFile);
                 await cloudFile.DeleteIfExistsAsync();
 
                 Console.WriteLine("Deleting the directory on the file share.");
 
                 // Delete the directory.
-                bool success = false;
-                success = await fileDirectory.DeleteIfExistsAsync();
+                bool success = await fileDirectory.DeleteIfExistsAsync();
                 if (success)
                 {
                     Console.WriteLine("    Directory on the file share deleted successfully.");
