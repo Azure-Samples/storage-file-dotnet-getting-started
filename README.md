@@ -1,7 +1,11 @@
 ---
-services: storage
-platforms: dotnet
-author: robinsh
+page_type: sample
+languages:
+- csharp
+products:
+- azure
+description: "Demonstrates how to use the File Storage service."
+urlFragment: storage-file-dotnet-getting-started
 ---
 
 # Getting Started with Azure File Service in .NET
