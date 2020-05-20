@@ -191,7 +191,7 @@ namespace FileStorage
                 Console.WriteLine("Downloading file from share to local temp folder {0}.", downloadFolder);
                 if (!Directory.Exists(downloadFolder))
                 {
-                    DirectoryInfo fileInfo = Directory.CreateDirectory(downloadFolder);
+                    Directory.CreateDirectory(downloadFolder);
                 }
 
                 // Download the file.
