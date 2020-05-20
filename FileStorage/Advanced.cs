@@ -14,11 +14,10 @@
 // places, or events is intended or should be inferred.
 //----------------------------------------------------------------------------------
 
+using Azure;
+using Azure.Storage.Files.Shares;
+using Azure.Storage.Files.Shares.Models;
 using Microsoft.Azure;
-using Microsoft.Azure.Storage;
-using Microsoft.Azure.Storage.File;
-using Microsoft.Azure.Storage.File.Protocol;
-using Microsoft.Azure.Storage.Shared.Protocol;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -37,48 +36,47 @@ namespace FileStorage
             //***** Setup *****//
             Console.WriteLine("Getting reference to the storage account.");
 
-            // Retrieve storage account information from connection string
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            string storageConnectionString = CloudConfigurationManager.GetSetting("StorageConnectionString");
 
             Console.WriteLine("Instantiating file client.");
             Console.WriteLine(string.Empty);
 
-            // Create a file client for interacting with the file service.
-            CloudFileClient cloudFileClient = storageAccount.CreateCloudFileClient();
+            // Create a share client for interacting with the file service.
+            ShareServiceClient shareServiceClient = new ShareServiceClient(storageConnectionString);
 
             // List shares
-            await ListSharesSample(cloudFileClient);
+            await ListSharesSample(shareServiceClient);
 
             // CORS Rules
-            await CorsSample(cloudFileClient);
+            await CorsSample(shareServiceClient);
 
             // Share Properties
-            await SharePropertiesSample(cloudFileClient);
+            await SharePropertiesSample(shareServiceClient);
 
             // Share Metadata
-            await ShareMetadataSample(cloudFileClient);
+            await ShareMetadataSample(shareServiceClient);
 
             // Directory Properties
-            await DirectoryPropertiesSample(cloudFileClient);
+            await DirectoryPropertiesSample(shareServiceClient);
 
             // Directory Metadata
-            await DirectoryMetadataSample(cloudFileClient);
+            await DirectoryMetadataSample(shareServiceClient);
 
             // File Properties
-            await FilePropertiesSample(cloudFileClient);
+            await FilePropertiesSample(shareServiceClient);
 
             // File Metadata
-            await FileMetadataSample(cloudFileClient);
+            await FileMetadataSample(shareServiceClient);
         }
 
-        private static async Task ListSharesSample(CloudFileClient cloudFileClient)
+        private static async Task ListSharesSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
+
             // Keep a list of the file shares so you can compare this list 
             //   against the list of shares that we retrieve .
             List<string> fileShareNames = new List<string>();
-
             try
             {
                 // Create 3 file shares.
@@ -86,7 +84,6 @@ namespace FileStorage
                 // Create the share name -- use a guid in the name so it's unique.
                 // This will also be used as the container name for blob storage when copying the file to blob storage.
                 string baseShareName = "demotest-" + System.Guid.NewGuid().ToString();
-
 
                 for (int i = 0; i < 3; i++)
                 {
@@ -96,13 +93,13 @@ namespace FileStorage
 
                     // Create the share with this name.
                     Console.WriteLine("Creating share with name {0}", shareName);
-                    CloudFileShare cloudFileShare = cloudFileClient.GetShareReference(shareName);
+                    ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
                     try
                     {
-                        await cloudFileShare.CreateIfNotExistsAsync();
+                        await shareClient.CreateIfNotExistsAsync();
                         Console.WriteLine("    Share created successfully.");
                     }
-                    catch (StorageException exStorage)
+                    catch (RequestFailedException exStorage)
                     {
                         Common.WriteException(exStorage);
                         Console.WriteLine(
@@ -123,12 +120,12 @@ namespace FileStorage
                 Console.WriteLine("List of shares in the storage account:");
 
                 // List the file shares for this storage account 
-                IEnumerable<CloudFileShare> cloudShareList = cloudFileClient.ListShares();
+                IEnumerable<ShareItem> shareList = shareServiceClient.GetShares();
                 try
                 {
-                    foreach (CloudFileShare cloudShare in cloudShareList)
+                    foreach (ShareItem Share in shareList)
                     {
-                        Console.WriteLine("Cloud Share name = {0}", cloudShare.Name);
+                        Console.WriteLine("Cloud Share name = {0}", Share.Name);
                     }
                 }
                 catch (Exception ex)
@@ -146,89 +143,94 @@ namespace FileStorage
             finally
             {
                 // If it created the file shares, remove them (cleanup).
-                if (fileShareNames != null && cloudFileClient != null)
+                if (fileShareNames != null && shareServiceClient != null)
                 {
                     // Now clean up after yourself, using the list of shares that you created in case there were other shares in the account.
                     foreach (string fileShareName in fileShareNames)
                     {
-                        CloudFileShare cloudFileShare = cloudFileClient.GetShareReference(fileShareName);
-                        cloudFileShare.DeleteIfExists();
+                        ShareClient share = shareServiceClient.GetShareClient(fileShareName);
+                        share.DeleteIfExists();
                     }
                 }
             }
+
             Console.WriteLine();
         }
 
         /// <summary>
         /// Query the Cross-Origin Resource Sharing (CORS) rules for the File service
         /// </summary>
-        /// <param name="fileClient"></param>
-        private static async Task CorsSample(CloudFileClient fileClient)
+        /// <param name="shareServiceClient"></param>
+        private static async Task CorsSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
 
             // Get service properties
             Console.WriteLine("Get service properties");
-            FileServiceProperties originalProperties = await fileClient.GetServicePropertiesAsync();
+            ShareServiceProperties originalProperties = await shareServiceClient.GetPropertiesAsync();
             try
             {
                 // Add CORS rule
                 Console.WriteLine("Add CORS rule");
 
-                CorsRule corsRule = new CorsRule
+                ShareCorsRule corsRule = new ShareCorsRule
                 {
-                    AllowedHeaders = new List<string> { "*" },
-                    AllowedMethods = CorsHttpMethods.Get,
-                    AllowedOrigins = new List<string> { "*" },
-                    ExposedHeaders = new List<string> { "*" },
+                    AllowedHeaders = "*",
+                    AllowedMethods = "GET",
+                    AllowedOrigins = "*",
+                    ExposedHeaders = "*",
                     MaxAgeInSeconds = 3600
                 };
 
-                FileServiceProperties serviceProperties = await fileClient.GetServicePropertiesAsync();
-                serviceProperties.Cors.CorsRules.Add(corsRule);
-                await fileClient.SetServicePropertiesAsync(serviceProperties);
+                ShareServiceProperties serviceProperties = await shareServiceClient.GetPropertiesAsync();
+
+                serviceProperties.Cors.Clear();
+                serviceProperties.Cors.Add(corsRule);
+
+                await shareServiceClient.SetPropertiesAsync(serviceProperties);
+                Console.WriteLine("Set property successfully");
             }
             finally
             {
                 // Revert back to original service properties
                 Console.WriteLine("Revert back to original service properties");
-                await fileClient.SetServicePropertiesAsync(originalProperties);
+                await shareServiceClient.SetPropertiesAsync(originalProperties);
+                Console.WriteLine("Revert properties successfully.");
             }
+
             Console.WriteLine();
         }
 
         /// <summary>
         /// Manage share properties
         /// </summary>
-        /// <param name="cloudFileClient"></param>
+        /// <param name="shareServiceClient"></param>
         /// <returns></returns>
-        private static async Task SharePropertiesSample(CloudFileClient cloudFileClient)
+        private static async Task SharePropertiesSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
+
             // Create the share name -- use a guid in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
-
-            CloudFileShare share = cloudFileClient.GetShareReference(shareName);
-
-            // Set share properties
-            Console.WriteLine("Set share properties");
-            share.Properties.Quota = 100;
-
+            ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
             try
             {
                 // Create Share
                 Console.WriteLine("Create Share");
-                await share.CreateIfNotExistsAsync();
+                await shareClient.CreateIfNotExistsAsync();
 
-                // Fetch share attributes
-                // in this case this call is not need but is included for demo purposes
-                await share.FetchAttributesAsync();
+                // Set share properties
+                Console.WriteLine("Set share properties");
+                shareClient.SetQuota(100);
+
+                // Fetch share properties
+                ShareProperties shareProperties = await shareClient.GetPropertiesAsync();
                 Console.WriteLine("Get share properties:");
-                Console.WriteLine("    Quota: {0}", share.Properties.Quota);
-                Console.WriteLine("    ETag: {0}", share.Properties.ETag);
-                Console.WriteLine("    Last modified: {0}", share.Properties.LastModified);
+                Console.WriteLine("    Quota: {0}", shareProperties.QuotaInGB);
+                Console.WriteLine("    ETag: {0}", shareProperties.ETag);
+                Console.WriteLine("    Last modified: {0}", shareProperties.LastModified);
             }
-            catch (StorageException exStorage)
+            catch (RequestFailedException exStorage)
             {
                 Common.WriteException(exStorage);
                 Console.WriteLine(
@@ -247,47 +249,53 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                share.DeleteIfExists();
+                shareClient.DeleteIfExists();
             }
+
             Console.WriteLine();
         }
 
         /// <summary>
         /// Manage share metadata
         /// </summary>
-        /// <param name="cloudFileClient"></param>
+        /// <param name="shareServiceClient"></param>
         /// <returns></returns>
-        private static async Task ShareMetadataSample(CloudFileClient cloudFileClient)
+        private static async Task ShareMetadataSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
+
             // Create the share name -- use a guid in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
 
-            // Create the share with this name.
-            CloudFileShare share = cloudFileClient.GetShareReference(shareName);
+            // Create Share
+            Console.WriteLine("Create Share");
+
+            ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
+            await shareClient.CreateIfNotExistsAsync();
 
             // Set share metadata
             Console.WriteLine("Set share metadata");
-            share.Metadata.Add("key1", "value1");
-            share.Metadata.Add("key2", "value2");
 
+            Dictionary<string, string> metaData = new Dictionary<string, string>();
+            metaData.Add("key1", "key1");
+            metaData.Add("key2", "key2");
+            shareClient.SetMetadata(metaData);
             try
             {
                 // Create Share
                 Console.WriteLine("Create Share");
-                await share.CreateIfNotExistsAsync();
+                await shareClient.CreateIfNotExistsAsync();
 
                 // Fetch share attributes
-                // in this case this call is not need but is included for demo purposes
-                await share.FetchAttributesAsync();
+                ShareProperties shareProperties = await shareClient.GetPropertiesAsync();
                 Console.WriteLine("Get share metadata:");
-                foreach (var keyValue in share.Metadata)
+                foreach (var keyValue in shareProperties.Metadata)
                 {
                     Console.WriteLine("    {0}: {1}", keyValue.Key, keyValue.Value);
                 }
                 Console.WriteLine();
             }
-            catch (StorageException exStorage)
+            catch (RequestFailedException exStorage)
             {
                 Common.WriteException(exStorage);
                 Console.WriteLine(
@@ -306,40 +314,39 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                share.DeleteIfExists();
+                shareClient.DeleteIfExists();
             }
         }
 
         /// <summary>
         /// Get directory properties
         /// </summary>
-        /// <param name="cloudFileClient"></param>
+        /// <param name="shareServiceClient"></param>
         /// <returns></returns>
-        private static async Task DirectoryPropertiesSample(CloudFileClient cloudFileClient)
+        private static async Task DirectoryPropertiesSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
+
             // Create the share name -- use a guid in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
-            CloudFileShare share = cloudFileClient.GetShareReference(shareName);
+            ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
             try
             {
                 // Create share
                 Console.WriteLine("Create Share");
-                await share.CreateIfNotExistsAsync();
+                await shareClient.CreateIfNotExistsAsync();
 
                 // Create directory
                 Console.WriteLine("Create directory");
-                CloudFileDirectory rootDirectory = share.GetRootDirectoryReference();
-                await rootDirectory.CreateIfNotExistsAsync();
+                ShareDirectoryClient rootDirectory = shareClient.GetRootDirectoryClient();
                 
                 // Fetch directory attributes
-                // in this case this call is not need but is included for demo purposes
-                await rootDirectory.FetchAttributesAsync();
+                ShareDirectoryProperties shareDirectoryProperties = await rootDirectory.GetPropertiesAsync();
                 Console.WriteLine("Get directory properties:");
-                Console.WriteLine("    ETag: {0}", rootDirectory.Properties.ETag);
-                Console.WriteLine("    Last modified: {0}", rootDirectory.Properties.LastModified);
+                Console.WriteLine("    ETag: {0}", shareDirectoryProperties.ETag);
+                Console.WriteLine("    Last modified: {0}", shareDirectoryProperties.LastModified);
             }
-            catch (StorageException exStorage)
+            catch (RequestFailedException exStorage)
             {
                 Common.WriteException(exStorage);
                 Console.WriteLine(
@@ -358,56 +365,57 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                share.DeleteIfExists();
+                shareClient.DeleteIfExists();
             }
+
             Console.WriteLine();
         }
 
         /// <summary>
         /// Manage share metadata
         /// </summary>
-        /// <param name="cloudFileClient"></param>
+        /// <param name="shareServiceClient"></param>
         /// <returns></returns>
-        private static async Task DirectoryMetadataSample(CloudFileClient cloudFileClient)
+        private static async Task DirectoryMetadataSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
 
             // Create the share name -- use a GUID in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
-            CloudFileShare share = cloudFileClient.GetShareReference(shareName);
+            ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
 
             try
             {
                 // Create share
                 Console.WriteLine("Create Share");
-                await share.CreateIfNotExistsAsync();
+                await shareClient.CreateIfNotExistsAsync();
 
-                CloudFileDirectory rootDirectory = share.GetRootDirectoryReference();
-
-                // Get a directory reference
-                CloudFileDirectory sampleDirectory = rootDirectory.GetDirectoryReference("sample-directory");
+                ShareDirectoryClient rootDirectory = shareClient.GetRootDirectoryClient();
 
                 Console.WriteLine("Create the directory");
-                sampleDirectory.CreateIfNotExists();
+                // Get a directory reference
+                ShareDirectoryClient sampleDirectory = rootDirectory.GetSubdirectoryClient("sample-directory");
+                await sampleDirectory.CreateIfNotExistsAsync();
 
                 // Set directory metadata
                 Console.WriteLine("Set directory metadata");
-                sampleDirectory.Metadata.Add("key1", "value1");
-                sampleDirectory.Metadata.Add("key2", "value2");
-                await sampleDirectory.SetMetadataAsync();
+
+                Dictionary<string, string> metadate = new Dictionary<string, string>();
+                metadate.Add("key1", "value1");
+                metadate.Add("key2", "value2");
+                await sampleDirectory.SetMetadataAsync(metadate);
 
                 // Fetch directory attributes
-                // in this case this call is not need but is included for demo purposes
-                await sampleDirectory.FetchAttributesAsync();
+                ShareDirectoryProperties shareDirectoryProperties = await sampleDirectory.GetPropertiesAsync();
 
                 Console.WriteLine("Get directory metadata:");
-                foreach (var keyValue in sampleDirectory.Metadata)
+                foreach (var keyValue in shareDirectoryProperties.Metadata)
                 {
                     Console.WriteLine("    {0}: {1}", keyValue.Key, keyValue.Value);
                 }
                 Console.WriteLine();
             }
-            catch (StorageException exStorage)
+            catch (RequestFailedException exStorage)
             {
                 Common.WriteException(exStorage);
                 Console.WriteLine(
@@ -426,57 +434,57 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                share.DeleteIfExists();
+                shareClient.DeleteIfExists();
             }
         }
 
         /// <summary>
         /// Manage file properties
         /// </summary>
-        /// <param name="cloudFileClient"></param>
+        /// <param name="shareServiceClient"></param>
         /// <returns></returns>
-        private static async Task FilePropertiesSample(CloudFileClient cloudFileClient)
+        private static async Task FilePropertiesSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
+
             // Create the share name -- use a guid in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
-            CloudFileShare share = cloudFileClient.GetShareReference(shareName);
+            ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
             try
             {
                 // Create share
                 Console.WriteLine("Create Share");
-                await share.CreateIfNotExistsAsync();
+                await shareClient.CreateIfNotExistsAsync();
 
                 // Create directory
                 Console.WriteLine("Create directory");
-                CloudFileDirectory rootDirectory = share.GetRootDirectoryReference();
-                await rootDirectory.CreateIfNotExistsAsync();
-
-                CloudFile file = rootDirectory.GetFileReference("demofile");
-
-                // Set file properties
-                file.Properties.ContentType = "plain/text";
-                file.Properties.ContentEncoding = "UTF-8";
-                file.Properties.ContentLanguage = "en";
+                ShareDirectoryClient rootDirectory = shareClient.GetRootDirectoryClient();
+                
+                ShareFileClient file = rootDirectory.GetFileClient("demofile");
 
                 // Create file
                 Console.WriteLine("Create file");
                 await file.CreateAsync(1000);
+
+                // Set file properties
+                ShareFileHttpHeaders headers = new ShareFileHttpHeaders()
+                {
+                    ContentType = "plain/text",
+                    ContentEncoding = new string[] { "UTF-8" },
+                    ContentLanguage = new string[] { "en" }
+                };
                 
+                file.SetHttpHeaders(httpHeaders: headers);
+
                 // Fetch file attributes
-                // in this case this call is not need but is included for demo purposes
-                await file.FetchAttributesAsync();
+                ShareFileProperties shareFileProperties = await file.GetPropertiesAsync();
                 Console.WriteLine("Get file properties:");
-                Console.WriteLine("    ETag: {0}", file.Properties.ETag);
-                Console.WriteLine("    Content type: {0}", file.Properties.ContentType);
-                Console.WriteLine("    Cache control: {0}", file.Properties.CacheControl);
-                Console.WriteLine("    Content encoding: {0}", file.Properties.ContentEncoding);
-                Console.WriteLine("    Content language: {0}", file.Properties.ContentLanguage);
-                Console.WriteLine("    Content disposition: {0}", file.Properties.ContentDisposition);
-                Console.WriteLine("    Content MD5: {0}", file.Properties.ContentMD5);
-                Console.WriteLine("    Length: {0}", file.Properties.Length);
+                Console.WriteLine("    Content type: {0}", shareFileProperties.ContentType);
+                Console.WriteLine("    Content encoding: {0}", string.Join("", shareFileProperties.ContentEncoding));
+                Console.WriteLine("    Content language: {0}", string.Join("", shareFileProperties.ContentLanguage));
+                Console.WriteLine("    Length: {0}", shareFileProperties.ContentLength);
             }
-            catch (StorageException exStorage)
+            catch (RequestFailedException exStorage)
             {
                 Common.WriteException(exStorage);
                 Console.WriteLine(
@@ -495,55 +503,58 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                share.DeleteIfExists();
+                shareClient.DeleteIfExists();
             }
+
             Console.WriteLine();
         }
 
         /// <summary>
         /// Manage file metadata
         /// </summary>
-        /// <param name="cloudFileClient"></param>
+        /// <param name="shareServiceClient"></param>
         /// <returns></returns>
-        private static async Task FileMetadataSample(CloudFileClient cloudFileClient)
+        private static async Task FileMetadataSample(ShareServiceClient shareServiceClient)
         {
             Console.WriteLine();
+
             // Create the share name -- use a guid in the name so it's unique.
             string shareName = "demotest-" + Guid.NewGuid();
-            CloudFileShare share = cloudFileClient.GetShareReference(shareName);
+            ShareClient shareClient = shareServiceClient.GetShareClient(shareName);
             try
             {
                 // Create share
                 Console.WriteLine("Create Share");
-                await share.CreateIfNotExistsAsync();
+                await shareClient.CreateIfNotExistsAsync();
 
                 // Create directory
                 Console.WriteLine("Create directory");
-                CloudFileDirectory rootDirectory = share.GetRootDirectoryReference();
-                await rootDirectory.CreateIfNotExistsAsync();
-
-                CloudFile file = rootDirectory.GetFileReference("demofile");
-
-                // Set file metadata
-                Console.WriteLine("Set file metadata");
-                file.Metadata.Add("key1", "value1");
-                file.Metadata.Add("key2", "value2");
+                ShareDirectoryClient rootDirectory = shareClient.GetRootDirectoryClient();
+               
+                ShareFileClient file = rootDirectory.GetFileClient("demofile");
 
                 // Create file
                 Console.WriteLine("Create file");
                 await file.CreateAsync(1000);
 
+                // Set file metadata
+                Console.WriteLine("Set file metadata");
+                Dictionary<string, string> metadata = new Dictionary<string, string>();
+                metadata.Add("key1", "value1");
+                metadata.Add("key2", "value2");
+
+                file.SetMetadata(metadata);
+
                 // Fetch file attributes
-                // in this case this call is not need but is included for demo purposes
-                await file.FetchAttributesAsync();
+                ShareFileProperties properties = await file.GetPropertiesAsync();
                 Console.WriteLine("Get file metadata:");
-                foreach (var keyValue in file.Metadata)
+                foreach (var keyValue in properties.Metadata)
                 {
                     Console.WriteLine("    {0}: {1}", keyValue.Key, keyValue.Value);
                 }
                 Console.WriteLine();
             }
-            catch (StorageException exStorage)
+            catch (RequestFailedException exStorage)
             {
                 Common.WriteException(exStorage);
                 Console.WriteLine(
@@ -562,8 +573,10 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                share.DeleteIfExists();
+                shareClient.DeleteIfExists();
             }
         }
     }
 }
+
+
