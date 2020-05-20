@@ -22,7 +22,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-
 // Create several shares, then show how to list them
 namespace FileStorage
 {
@@ -99,9 +98,9 @@ namespace FileStorage
                         await shareClient.CreateIfNotExistsAsync();
                         Console.WriteLine("    Share created successfully.");
                     }
-                    catch (RequestFailedException exStorage)
+                    catch (RequestFailedException exRequest)
                     {
-                        Common.WriteException(exStorage);
+                        Common.WriteException(exRequest);
                         Console.WriteLine(
                             "Please make sure your storage account has storage file endpoint enabled and specified correctly in the app.config - then restart the sample.");
                         Console.WriteLine("Press any key to exit");
@@ -120,10 +119,10 @@ namespace FileStorage
                 Console.WriteLine("List of shares in the storage account:");
 
                 // List the file shares for this storage account 
-                IEnumerable<ShareItem> shareList = shareServiceClient.GetShares();
+                var shareList = shareServiceClient.GetSharesAsync();
                 try
                 {
-                    foreach (ShareItem Share in shareList)
+                    await foreach (ShareItem Share in shareList)
                     {
                         Console.WriteLine("Cloud Share name = {0}", Share.Name);
                     }
@@ -221,7 +220,7 @@ namespace FileStorage
 
                 // Set share properties
                 Console.WriteLine("Set share properties");
-                shareClient.SetQuota(100);
+                await shareClient.SetQuotaAsync(100);
 
                 // Fetch share properties
                 ShareProperties shareProperties = await shareClient.GetPropertiesAsync();
@@ -230,9 +229,9 @@ namespace FileStorage
                 Console.WriteLine("    ETag: {0}", shareProperties.ETag);
                 Console.WriteLine("    Last modified: {0}", shareProperties.LastModified);
             }
-            catch (RequestFailedException exStorage)
+            catch (RequestFailedException exRequest)
             {
-                Common.WriteException(exStorage);
+                Common.WriteException(exRequest);
                 Console.WriteLine(
                     "Please make sure your storage account is specified correctly in the app.config - then restart the sample.");
                 Console.WriteLine("Press any key to exit");
@@ -249,7 +248,7 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                shareClient.DeleteIfExists();
+                await shareClient.DeleteIfExistsAsync();
             }
 
             Console.WriteLine();
@@ -279,7 +278,7 @@ namespace FileStorage
             Dictionary<string, string> metaData = new Dictionary<string, string>();
             metaData.Add("key1", "key1");
             metaData.Add("key2", "key2");
-            shareClient.SetMetadata(metaData);
+            await shareClient.SetMetadataAsync(metaData);
             try
             {
                 // Create Share
@@ -295,9 +294,9 @@ namespace FileStorage
                 }
                 Console.WriteLine();
             }
-            catch (RequestFailedException exStorage)
+            catch (RequestFailedException exRequest)
             {
-                Common.WriteException(exStorage);
+                Common.WriteException(exRequest);
                 Console.WriteLine(
                     "Please make sure your storage account is specified correctly in the app.config - then restart the sample.");
                 Console.WriteLine("Press any key to exit");
@@ -314,7 +313,7 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                shareClient.DeleteIfExists();
+                await shareClient.DeleteIfExistsAsync();
             }
         }
 
@@ -346,9 +345,9 @@ namespace FileStorage
                 Console.WriteLine("    ETag: {0}", shareDirectoryProperties.ETag);
                 Console.WriteLine("    Last modified: {0}", shareDirectoryProperties.LastModified);
             }
-            catch (RequestFailedException exStorage)
+            catch (RequestFailedException exRequest)
             {
-                Common.WriteException(exStorage);
+                Common.WriteException(exRequest);
                 Console.WriteLine(
                     "Please make sure your storage account is specified correctly in the app.config - then restart the sample.");
                 Console.WriteLine("Press any key to exit");
@@ -365,7 +364,7 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                shareClient.DeleteIfExists();
+                await shareClient.DeleteIfExistsAsync();
             }
 
             Console.WriteLine();
@@ -393,7 +392,7 @@ namespace FileStorage
                 ShareDirectoryClient rootDirectory = shareClient.GetRootDirectoryClient();
 
                 Console.WriteLine("Create the directory");
-                // Get a directory reference
+                // Get a directory client
                 ShareDirectoryClient sampleDirectory = rootDirectory.GetSubdirectoryClient("sample-directory");
                 await sampleDirectory.CreateIfNotExistsAsync();
 
@@ -415,9 +414,9 @@ namespace FileStorage
                 }
                 Console.WriteLine();
             }
-            catch (RequestFailedException exStorage)
+            catch (RequestFailedException exRequest)
             {
-                Common.WriteException(exStorage);
+                Common.WriteException(exRequest);
                 Console.WriteLine(
                     "Please make sure your storage account is specified correctly in the app.config - then restart the sample.");
                 Console.WriteLine("Press any key to exit");
@@ -434,7 +433,7 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                shareClient.DeleteIfExists();
+                await shareClient.DeleteIfExistsAsync();
             }
         }
 
@@ -473,8 +472,8 @@ namespace FileStorage
                     ContentEncoding = new string[] { "UTF-8" },
                     ContentLanguage = new string[] { "en" }
                 };
-                
-                file.SetHttpHeaders(httpHeaders: headers);
+
+                await file.SetHttpHeadersAsync(httpHeaders: headers);
 
                 // Fetch file attributes
                 ShareFileProperties shareFileProperties = await file.GetPropertiesAsync();
@@ -484,9 +483,9 @@ namespace FileStorage
                 Console.WriteLine("    Content language: {0}", string.Join("", shareFileProperties.ContentLanguage));
                 Console.WriteLine("    Length: {0}", shareFileProperties.ContentLength);
             }
-            catch (RequestFailedException exStorage)
+            catch (RequestFailedException exRequest)
             {
-                Common.WriteException(exStorage);
+                Common.WriteException(exRequest);
                 Console.WriteLine(
                     "Please make sure your storage account is specified correctly in the app.config - then restart the sample.");
                 Console.WriteLine("Press any key to exit");
@@ -503,7 +502,7 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                shareClient.DeleteIfExists();
+                await shareClient.DeleteIfExistsAsync();
             }
 
             Console.WriteLine();
@@ -543,7 +542,7 @@ namespace FileStorage
                 metadata.Add("key1", "value1");
                 metadata.Add("key2", "value2");
 
-                file.SetMetadata(metadata);
+                await file.SetMetadataAsync(metadata);
 
                 // Fetch file attributes
                 ShareFileProperties properties = await file.GetPropertiesAsync();
@@ -554,9 +553,9 @@ namespace FileStorage
                 }
                 Console.WriteLine();
             }
-            catch (RequestFailedException exStorage)
+            catch (RequestFailedException exRequest)
             {
-                Common.WriteException(exStorage);
+                Common.WriteException(exRequest);
                 Console.WriteLine(
                     "Please make sure your storage account is specified correctly in the app.config - then restart the sample.");
                 Console.WriteLine("Press any key to exit");
@@ -573,10 +572,8 @@ namespace FileStorage
             {
                 // Delete share
                 Console.WriteLine("Delete share");
-                shareClient.DeleteIfExists();
+                await shareClient.DeleteIfExistsAsync();
             }
         }
     }
 }
-
-
