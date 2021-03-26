@@ -14,15 +14,19 @@
 // places, or events is intended or should be inferred.
 //----------------------------------------------------------------------------------
 
+using Azure;
+using Azure.Storage;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Files.Shares;
+using Azure.Storage.Files.Shares.Models;
+using Azure.Storage.Sas;
 using Microsoft.Azure;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Blob;
-using Microsoft.WindowsAzure.Storage.File;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using CopyStatus = Azure.Storage.Blobs.Models.CopyStatus;
 
 // Create share, upload file, download file, list files and folders, copy file, abort copy file, write range, list ranges.
 namespace FileStorage
@@ -35,28 +39,31 @@ namespace FileStorage
         public async Task RunFileStorageOperationsAsync()
         {
             // These are used in the finally block to clean up the objects created during the demo.
-            CloudFile cloudFile = null;
-            CloudFileDirectory fileDirectory = null;
+            ShareClient shareClient = null;
+            ShareFileClient shareFileClient = null;
+            ShareDirectoryClient fileDirectory = null;
+            
+            BlobClient targetBlob = null;
+            BlobContainerClient blobContainer = null;
+
             string destFile = null;
-
-            CloudBlob targetBlob = null;
-            CloudFileShare cloudFileShare = null;
             string downloadFolder = null;
-            CloudBlobContainer cloudBlobContainer = null;
-
+            // Name to be used for the file when downloading it so you can inspect it locally
+            string downloadFile = null;
             try
             {
                 //***** Setup *****//
                 Console.WriteLine("Getting reference to the storage account.");
 
-                // Retrieve storage account information from connection string
                 // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-                CloudStorageAccount storageAccount = Common.CreateStorageAccountFromConnectionString(CloudConfigurationManager.GetSetting("StorageConnectionString"));
+                string storageConnectionString = CloudConfigurationManager.GetSetting("StorageConnectionString");
+                string storageAccountName = CloudConfigurationManager.GetSetting("StorageAccountName");
+                string storageAccountKey = CloudConfigurationManager.GetSetting("StorageAccountKey");
 
                 Console.WriteLine("Instantiating file client.");
 
-                // Create a file client for interacting with the file service.
-                CloudFileClient cloudFileClient = storageAccount.CreateCloudFileClient();
+                // Create a share client for interacting with the file service.
+                ShareServiceClient shareServiceClient = new ShareServiceClient(storageConnectionString);
 
                 // Create the share name -- use a guid in the name so it's unique.
                 // This will also be used as the container name for blob storage when copying the file to blob storage.
@@ -79,15 +86,15 @@ namespace FileStorage
 
                 // Create the share if it doesn't already exist.
                 Console.WriteLine("Creating share with name {0}", shareName);
-                cloudFileShare = cloudFileClient.GetShareReference(shareName);
+                shareClient = shareServiceClient.GetShareClient(shareName);
                 try
                 {
-                    await cloudFileShare.CreateIfNotExistsAsync();
+                    await shareClient.CreateIfNotExistsAsync();
                     Console.WriteLine("    Share created successfully.");
                 }
-                catch (StorageException exStorage)
+                catch (RequestFailedException exRequest)
                 {
-                    Common.WriteException(exStorage);
+                    Common.WriteException(exRequest);
                     Console.WriteLine("Please make sure your storage account has storage file endpoint enabled and specified correctly in the app.config - then restart the sample.");
                     Console.WriteLine("Press any key to exit");
                     Console.ReadLine();
@@ -105,10 +112,8 @@ namespace FileStorage
                 // Create a directory on the share.
                 Console.WriteLine("Creating directory named {0}", sourceFolder);
 
-                // First, get a reference to the root directory, because that's where you're going to put the new directory.
-                CloudFileDirectory rootDirectory = cloudFileShare.GetRootDirectoryReference();
+                ShareDirectoryClient rootDirectory = shareClient.GetRootDirectoryClient();
 
-                // Set a reference to the file directory.
                 // If the source folder is null, then use the root folder.
                 // If the source folder is specified, then get a reference to it.
                 if (string.IsNullOrWhiteSpace(sourceFolder))
@@ -120,7 +125,7 @@ namespace FileStorage
                 else
                 {
                     // There was a folder specified, so return a reference to that folder.
-                    fileDirectory = rootDirectory.GetDirectoryReference(sourceFolder);
+                    fileDirectory = rootDirectory.GetSubdirectoryClient(sourceFolder);
 
                     await fileDirectory.CreateIfNotExistsAsync();
                     Console.WriteLine("    Directory created successfully.");
@@ -128,8 +133,8 @@ namespace FileStorage
 
                 //***** Upload a file to the file share *****//
 
-                // Set a reference to the file.
-                cloudFile = fileDirectory.GetFileReference(testFile);
+                // Get a file client.
+                shareFileClient = fileDirectory.GetFileClient(testFile);
 
                 // Upload a file to the share.
                 Console.WriteLine("Uploading file {0} to share", testFile);
@@ -138,8 +143,12 @@ namespace FileStorage
                 string sourceFile = Path.Combine(localFolder, testFile);
                 if (File.Exists(sourceFile))
                 {
-                    // Upload from the local file to the file share in azure.
-                    await cloudFile.UploadFromFileAsync(sourceFile);
+                    using (FileStream stream = File.OpenRead(sourceFile))
+                    {
+                        // Upload from the local file to the file share in azure.
+                        await shareFileClient.CreateAsync(stream.Length);
+                        await shareFileClient.UploadAsync(stream);
+                    }
                     Console.WriteLine("    Successfully uploaded file to share.");
                 }
                 else
@@ -152,13 +161,13 @@ namespace FileStorage
                 // List all files/directories under the root directory.
                 Console.WriteLine("Getting list of all files/directories under the root directory of the share.");
 
-                IEnumerable<IListFileItem> fileList = cloudFileShare.GetRootDirectoryReference().ListFilesAndDirectories();
+                var fileList = rootDirectory.GetFilesAndDirectoriesAsync();
 
                 // Print all files/directories listed above.
-                foreach (IListFileItem listItem in fileList)
+                await foreach (ShareFileItem listItem in fileList)
                 {
-                    // listItem type will be CloudFile or CloudFileDirectory.
-                    Console.WriteLine("    - {0} (type: {1})", listItem.Uri, listItem.GetType());
+                    // listItem type will be ShareClient or ShareDirectoryClient.
+                    Console.WriteLine("    - {0} (type: {1})", listItem.Name, listItem.GetType());
                 }
 
                 Console.WriteLine("Getting list of all files/directories in the file directory on the share.");
@@ -166,13 +175,13 @@ namespace FileStorage
                 // Now get the list of all files/directories in your directory.
                 // Ordinarily, you'd write something recursive to do this for all directories and subdirectories.
 
-                fileList = fileDirectory.ListFilesAndDirectories();
+                fileList = fileDirectory.GetFilesAndDirectoriesAsync();
 
                 // Print all files/directories in the folder.
-                foreach (IListFileItem listItem in fileList)
+                await foreach (ShareFileItem listItem in fileList)
                 {
-                    // listItem type will be CloudFile or CloudFileDirectory.
-                    Console.WriteLine("    - {0} (type: {1})", listItem.Uri, listItem.GetType());
+                    // listItem type will be ShareClient or ShareDirectoryClient.
+                    Console.WriteLine("    - {0} (type: {1})", listItem.Name, listItem.GetType());
                 }
 
                 //***** Download a file from the file share *****//
@@ -186,7 +195,14 @@ namespace FileStorage
                 }
 
                 // Download the file.
-                await cloudFile.DownloadToFileAsync(Path.Combine(downloadFolder, testFile), FileMode.OpenOrCreate);
+                ShareFileDownloadInfo download = await shareFileClient.DownloadAsync();
+
+                downloadFile = Path.Combine(downloadFolder, testFile);
+                using (FileStream stream = File.OpenWrite(downloadFile))
+                {
+                    await download.Content.CopyToAsync(stream);
+                }
+
                 Console.WriteLine("    Successfully downloaded file from share to local temp folder.");
 
                 //***** Copy a file from the file share to blob storage, then abort the copy *****//
@@ -198,87 +214,105 @@ namespace FileStorage
                 //   take long enough to give you time to abort the copy. 
                 // If you want to change the file you're testing the Copy with without changing the value for the 
                 //   rest of the sample code, upload the file to the share, then assign the name of the file 
-                //   to the testFile variable right here before calling GetFileReference. 
+                //   to the testFile variable right here before calling GetFileClient. 
                 //   Then it will use the new file for the copy and abort but the rest of the code
                 //   will still use the original file.
-                CloudFile cloudFileCopy = fileDirectory.GetFileReference(testFile);
+                ShareFileClient shareFileCopy = fileDirectory.GetFileClient(testFile);
 
                 // Upload a file to the share.
                 Console.WriteLine("Uploading file {0} to share", testFile);
 
                 // Set up the name and path of the local file.
                 string sourceFileCopy = Path.Combine(localFolder, testFile);
-                await cloudFileCopy.UploadFromFileAsync(sourceFileCopy);
+                using (FileStream stream = File.OpenRead(sourceFile))
+                {
+                    // Upload from the local file to the file share in azure.
+                    await shareFileCopy.CreateAsync(stream.Length);
+                    await shareFileCopy.UploadAsync(stream);
+                }
                 Console.WriteLine("    Successfully uploaded file to share.");
 
                 // Copy the file to blob storage.
                 Console.WriteLine("Copying file to blob storage. Container name = {0}", shareName);
 
-                // First get a reference to the blob. 
-                CloudBlobClient cloudBlobClient = storageAccount.CreateCloudBlobClient();
+                // First get a blob service client. 
+                BlobServiceClient blobServiceClient = new BlobServiceClient(storageConnectionString);
 
-                // Get a reference to the blob container and create it if it doesn't already exist.
-                cloudBlobContainer = cloudBlobClient.GetContainerReference(shareName);
-                cloudBlobContainer.CreateIfNotExists();
+                // Get a blob container client and create it if it doesn't already exist.
+                blobContainer = blobServiceClient.GetBlobContainerClient(shareName);
+                await blobContainer.CreateIfNotExistsAsync();
 
-                // Get a blob reference to the target blob.
-                targetBlob = cloudBlobContainer.GetBlobReference(testFile);
+                // Get a blob client to the target blob.
+                targetBlob = blobContainer.GetBlobClient(testFile);
 
                 string copyId = string.Empty;
 
-                // Get a reference to the file to be copied.
-                cloudFile = fileDirectory.GetFileReference(testFile);
+                // Get a share file client to be copied.
+                shareFileClient = fileDirectory.GetFileClient(testFile);
 
                 // Create a SAS for the file that's valid for 24 hours.
                 // Note that when you are copying a file to a blob, or a blob to a file, you must use a SAS
                 // to authenticate access to the source object, even if you are copying within the same
                 // storage account.
-                string fileSas = cloudFile.GetSharedAccessSignature(new SharedAccessFilePolicy()
+                AccountSasBuilder sas = new AccountSasBuilder
                 {
-                    // Only read permissions are required for the source file.
-                    Permissions = SharedAccessFilePermissions.Read,
-                    SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24)
-                });
+                    // Allow access to Files
+                    Services = AccountSasServices.Files,
 
-                // Construct the URI to the source file, including the SAS token.
-                Uri fileSasUri = new Uri(cloudFile.StorageUri.PrimaryUri.ToString() + fileSas);
+                    // Allow access to the service level APIs
+                    ResourceTypes = AccountSasResourceTypes.All,
 
+                    // Access expires in 1 day!
+                    ExpiresOn = DateTime.UtcNow.AddDays(1)
+                };
+                sas.SetPermissions(AccountSasPermissions.Read);
+
+                StorageSharedKeyCredential credential = new StorageSharedKeyCredential(storageAccountName, storageAccountKey);
+
+                // Build a SAS URI
+                UriBuilder sasUri = new UriBuilder(shareFileClient.Uri)
+                {
+                    Query = sas.ToSasQueryParameters(credential).ToString()
+                };
                 // Start the copy of the file to the blob.
-                copyId = await targetBlob.StartCopyAsync(fileSasUri);
+                CopyFromUriOperation operation = await targetBlob.StartCopyFromUriAsync(sasUri.Uri);
+                copyId = operation.Id;
+
                 Console.WriteLine("   File copy started successfully. copyID = {0}", copyId);
+                /*
+                           // Abort the copy of the file to blob storage.
+                                // Note that you call Abort on the target object, i.e. the blob, not the file.
+                                // If you were copying from one file to another on the file share, the target object would be a file.
+                                Console.WriteLine("Check the copy status. If pending, cancel the copy operation");
 
-/*              // Abort the copy of the file to blob storage.
-                // Note that you call Abort on the target object, i.e. the blob, not the file.
-                // If you were copying from one file to another on the file share, the target object would be a file.
-                Console.WriteLine("Check the copy status. If pending, cancel the copy operation");
+                                // Print out the copy state information.
+                                CopyStatus copyStatus = targetBlob.GetPropertiesAsync().Result.Value.CopyStatus;
+                                Console.WriteLine("    targetBlob.copystate.CopyId = {0}", copyId);
+                                Console.WriteLine("    targetBlob.copystate.Status = {0}", copyStatus);
 
-                // Print out the copy state information.
-                targetBlob.FetchAttributes();
-                Console.WriteLine("    targetBlob.copystate.CopyId = {0}", targetBlob.CopyState.CopyId);
-                Console.WriteLine("    targetBlob.copystate.Status = {0}", targetBlob.CopyState.Status);
-
-                // Do the actual abort copy.
-                // This only works if the copy is still pending or ongoing.
-                if (targetBlob.CopyState.Status == CopyStatus.Pending)
-                {
-                    Console.WriteLine("   Status is Pending; cancelling the copy operation.");
-                    // Call to stop the copy, passing in the copyId of the operation.
-                    // This won't work if it has already finished copying.
-                    await targetBlob.AbortCopyAsync(copyId);
-                    Console.WriteLine("   Cancelling the copy succeeded.");
-                }
-                else
-                {
-                    // If this happens, try a larger file.
-                    Console.WriteLine("    Cancellation of copy not performed; copy has already finished.");
-                }
-*/
+                                // Do the actual abort copy.
+                                // This only works if the copy is still pending or ongoing.
+                                if (copyStatus == CopyStatus.Pending)
+                                {
+                                    Console.WriteLine("   Status is Pending; cancelling the copy operation.");
+                                    // Call to stop the copy, passing in the copyId of the operation.
+                                    // This won't work if it has already finished copying.
+                                    await targetBlob.AbortCopyFromUriAsync(copyId);
+                                    Console.WriteLine("   Cancelling the copy succeeded.");
+                                }
+                                else
+                                {
+                                    // If this happens, try a larger file.
+                                    Console.WriteLine("    Cancellation of copy not performed; copy has already finished.");
+                                }
+                
+                */
                 // Now clean up after yourself.
                 Console.WriteLine("Deleting the files from the file share.");
 
                 // Delete the files because cloudFile is a different file in the range sample.
-                cloudFile = fileDirectory.GetFileReference(testFile);
-                cloudFile.DeleteIfExists();
+                shareFileClient = fileDirectory.GetFileClient(testFile);
+                await shareFileClient.DeleteIfExistsAsync();
 
                 Console.WriteLine("Setting up files to test WriteRange and ListRanges.");
 
@@ -295,15 +329,12 @@ namespace FileStorage
 
                 // Set the destination file name -- this is the file on the file share that you're writing to.
                 destFile = "rangeops.txt";
-                cloudFile = fileDirectory.GetFileReference(destFile);
+                shareFileClient = fileDirectory.GetFileClient(destFile);
 
                 // Create a string with 512 a's in it. This will be used to write the range.
                 int testStreamLen = 512;
                 string textToStream = string.Empty;
                 textToStream = textToStream.PadRight(testStreamLen, 'a');
-
-                // Name to be used for the file when downloading it so you can inspect it locally
-                string downloadFile;
 
                 using (MemoryStream ms = new MemoryStream(Encoding.Default.GetBytes(textToStream)))
                 {
@@ -319,23 +350,29 @@ namespace FileStorage
                     // If the file doesn't exist, create it.
                     // The maximum file size is passed in. It has to be big enough to hold
                     //   all the data you're going to write, so don't set it to 256k and try to write two 256-k blocks to it. 
-                    if (!cloudFile.Exists())
+                    if (!shareFileClient.Exists())
                     {
                         Console.WriteLine("File doesn't exist, create empty file to write ranges to.");
 
                         // Create a file with a maximum file size of 64k. 
-                        await cloudFile.CreateAsync(maxFileSize);
+                        await shareFileClient.CreateAsync(maxFileSize);
                         Console.WriteLine("    Empty file created successfully.");
                     }
 
                     // Write the stream to the file starting at startOffset for the length of the stream.
                     Console.WriteLine("Writing range to file.");
-                    await cloudFile.WriteRangeAsync(ms, startOffset, null);
+                    HttpRange range = new HttpRange(startOffset, textToStream.Length);
+                    await shareFileClient.UploadRangeAsync(range, ms);
 
                     // Download the file to your temp directory so you can inspect it locally.
                     downloadFile = Path.Combine(downloadFolder, "__testrange.txt");
                     Console.WriteLine("Downloading file to examine.");
-                    await cloudFile.DownloadToFileAsync(downloadFile, FileMode.OpenOrCreate);
+                    download = await shareFileClient.DownloadAsync();
+                    using (FileStream stream = File.OpenWrite(downloadFile))
+                    {
+                        await download.Content.CopyToAsync(stream);
+                    }
+
                     Console.WriteLine("    Successfully downloaded file with ranges in it to examine.");
                 }
 
@@ -362,28 +399,36 @@ namespace FileStorage
 
                     // Write the stream to the file starting at startOffset for the length of the stream.
                     Console.WriteLine("Write second range to file.");
-                    await cloudFile.WriteRangeAsync(ms, startOffset, null);
+                    HttpRange range = new HttpRange(startOffset, textToStream.Length);
+                    await shareFileClient.UploadRangeAsync(range, ms);
                     Console.WriteLine("    Successful writing second range to file.");
 
                     // Download the file to your temp directory so you can examine it.
                     downloadFile = Path.Combine(downloadFolder, "__testrange2.txt");
                     Console.WriteLine("Downloading file with two ranges in it to examine.");
-                    await cloudFile.DownloadToFileAsync(downloadFile, FileMode.OpenOrCreate);
+
+                    download = await shareFileClient.DownloadAsync();
+
+                    using (FileStream stream = File.OpenWrite(downloadFile))
+                    {
+                        await download.Content.CopyToAsync(stream);
+                    }
                     Console.WriteLine("    Successfully downloaded file to examine.");
                 }
 
                 // Query and view the list of ranges.
                 Console.WriteLine("Call to get the list of ranges.");
-                IEnumerable<FileRange> listOfRanges = await cloudFile.ListRangesAsync();
+                var listOfRanges = await shareFileClient.GetRangeListAsync(new HttpRange());
+                
+
                 Console.WriteLine("    Successfully retrieved list of ranges.");
-                foreach (FileRange fileRange in listOfRanges)
+                foreach (HttpRange range in listOfRanges.Value.Ranges)
                 {
-                    Console.WriteLine("    --> filerange startOffset = {0}, endOffset = {1}", fileRange.StartOffset, fileRange.EndOffset);
+                    Console.WriteLine("    --> filerange startOffset = {0}, endOffset = {1}", range.Offset, range.Offset + range.Length);
                 }
-
+                
                 //***** Clean up *****//
-
-
+             
             }
             catch (Exception ex)
             {
@@ -402,8 +447,8 @@ namespace FileStorage
 
                 // Delete the file with the ranges in it.
                 destFile = "rangeops.txt";
-                cloudFile = fileDirectory.GetFileReference(destFile);
-                await cloudFile.DeleteIfExistsAsync();
+                shareFileClient = fileDirectory.GetFileClient(destFile);
+                await shareFileClient.DeleteIfExistsAsync();
 
                 Console.WriteLine("Deleting the directory on the file share.");
 
@@ -421,7 +466,7 @@ namespace FileStorage
                 Console.WriteLine("Deleting the file share.");
 
                 // Delete the share.
-                await cloudFileShare.DeleteAsync();
+                await shareClient.DeleteAsync();
                 Console.WriteLine("    Deleted the file share successfully.");
 
                 Console.WriteLine("Deleting the temporary download directory and the file in it.");
@@ -432,7 +477,7 @@ namespace FileStorage
 
                 Console.WriteLine("Deleting the container and blob used in the Copy/Abort test.");
                 await targetBlob.DeleteIfExistsAsync();
-                await cloudBlobContainer.DeleteIfExistsAsync();
+                await blobContainer.DeleteIfExistsAsync();
                 Console.WriteLine("    Successfully deleted the blob and its container.");
 
             }
