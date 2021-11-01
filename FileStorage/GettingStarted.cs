@@ -21,12 +21,11 @@ using Azure.Storage.Blobs.Models;
 using Azure.Storage.Files.Shares;
 using Azure.Storage.Files.Shares.Models;
 using Azure.Storage.Sas;
-using Microsoft.Azure;
 using System;
+using System.Configuration;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using CopyStatus = Azure.Storage.Blobs.Models.CopyStatus;
 
 // Create share, upload file, download file, list files and folders, copy file, abort copy file, write range, list ranges.
 namespace FileStorage
@@ -56,9 +55,9 @@ namespace FileStorage
                 Console.WriteLine("Getting reference to the storage account.");
 
                 // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-                string storageConnectionString = CloudConfigurationManager.GetSetting("StorageConnectionString");
-                string storageAccountName = CloudConfigurationManager.GetSetting("StorageAccountName");
-                string storageAccountKey = CloudConfigurationManager.GetSetting("StorageAccountKey");
+                string storageConnectionString = ConfigurationManager.AppSettings.Get("StorageConnectionString");
+                string storageAccountName = ConfigurationManager.AppSettings.Get("StorageAccountName");
+                string storageAccountKey = ConfigurationManager.AppSettings.Get("StorageAccountKey");
 
                 Console.WriteLine("Instantiating file client.");
 
@@ -279,34 +278,7 @@ namespace FileStorage
                 copyId = operation.Id;
 
                 Console.WriteLine("   File copy started successfully. copyID = {0}", copyId);
-                /*
-                           // Abort the copy of the file to blob storage.
-                                // Note that you call Abort on the target object, i.e. the blob, not the file.
-                                // If you were copying from one file to another on the file share, the target object would be a file.
-                                Console.WriteLine("Check the copy status. If pending, cancel the copy operation");
 
-                                // Print out the copy state information.
-                                CopyStatus copyStatus = targetBlob.GetPropertiesAsync().Result.Value.CopyStatus;
-                                Console.WriteLine("    targetBlob.copystate.CopyId = {0}", copyId);
-                                Console.WriteLine("    targetBlob.copystate.Status = {0}", copyStatus);
-
-                                // Do the actual abort copy.
-                                // This only works if the copy is still pending or ongoing.
-                                if (copyStatus == CopyStatus.Pending)
-                                {
-                                    Console.WriteLine("   Status is Pending; cancelling the copy operation.");
-                                    // Call to stop the copy, passing in the copyId of the operation.
-                                    // This won't work if it has already finished copying.
-                                    await targetBlob.AbortCopyFromUriAsync(copyId);
-                                    Console.WriteLine("   Cancelling the copy succeeded.");
-                                }
-                                else
-                                {
-                                    // If this happens, try a larger file.
-                                    Console.WriteLine("    Cancellation of copy not performed; copy has already finished.");
-                                }
-                
-                */
                 // Now clean up after yourself.
                 Console.WriteLine("Deleting the files from the file share.");
 

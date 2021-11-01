@@ -17,9 +17,9 @@
 using Azure;
 using Azure.Storage.Files.Shares;
 using Azure.Storage.Files.Shares.Models;
-using Microsoft.Azure;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Threading.Tasks;
 
 // Create several shares, then show how to list them
@@ -36,7 +36,7 @@ namespace FileStorage
             Console.WriteLine("Getting reference to the storage account.");
 
             // How to create a storage connection string - http://msdn.microsoft.com/en-us/library/azure/ee758697.aspx
-            string storageConnectionString = CloudConfigurationManager.GetSetting("StorageConnectionString");
+            string storageConnectionString = ConfigurationManager.AppSettings.Get("StorageConnectionString");
 
             Console.WriteLine("Instantiating file client.");
             Console.WriteLine(string.Empty);
