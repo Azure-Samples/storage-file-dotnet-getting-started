@@ -180,8 +180,8 @@ namespace FileStorage
                 // Print all files/directories in the folder.
                 await foreach (ShareFileItem listItem in fileList)
                 {
-                    // listItem type will be ShareClient or ShareDirectoryClient.
-                    Console.WriteLine("    - {0} (type: {1})", listItem.Name, listItem.GetType());
+                    // listItem type will be a file or directory
+                    Console.WriteLine("    - {0} (IsDirectory: {1})", listItem.Name, listItem.IsDirectory);
                 }
 
                 //***** Download a file from the file share *****//
