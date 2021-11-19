@@ -41,7 +41,7 @@ namespace FileStorage
             Console.WriteLine("Instantiating file client.");
             Console.WriteLine(string.Empty);
 
-            // Create a share client for interacting with the file service.
+            // Create a share service client for interacting with the file service.
             ShareServiceClient shareServiceClient = new ShareServiceClient(storageConnectionString);
 
             // List shares
