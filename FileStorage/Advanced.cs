@@ -172,7 +172,7 @@ namespace FileStorage
                 // Add CORS rule
                 Console.WriteLine("Add CORS rule");
 
-                ShareCorsRule corsRule = new ShareCorsRule
+                var corsRule = new ShareCorsRule
                 {
                     AllowedHeaders = "*",
                     AllowedMethods = "GET",
