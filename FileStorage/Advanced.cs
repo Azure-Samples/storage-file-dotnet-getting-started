@@ -464,7 +464,7 @@ namespace FileStorage
                 await file.CreateAsync(1000);
 
                 // Set file properties
-                ShareFileHttpHeaders headers = new ShareFileHttpHeaders()
+                var headers = new ShareFileHttpHeaders
                 {
                     ContentType = "plain/text",
                     ContentEncoding = new string[] { "UTF-8" },
