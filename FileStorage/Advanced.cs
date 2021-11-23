@@ -399,10 +399,8 @@ namespace FileStorage
                 // Set directory metadata
                 Console.WriteLine("Set directory metadata");
 
-                Dictionary<string, string> metadate = new Dictionary<string, string>();
-                metadate.Add("key1", "value1");
-                metadate.Add("key2", "value2");
-                await sampleDirectory.SetMetadataAsync(metadate);
+                var metadata = new Dictionary<string, string> { {"key1", "value1"}, {"key2", "value2"} };
+                await sampleDirectory.SetMetadataAsync(metadata);
 
                 // Fetch directory attributes
                 ShareDirectoryProperties shareDirectoryProperties = await sampleDirectory.GetPropertiesAsync();
