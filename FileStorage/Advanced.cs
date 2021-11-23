@@ -275,10 +275,8 @@ namespace FileStorage
             // Set share metadata
             Console.WriteLine("Set share metadata");
 
-            Dictionary<string, string> metaData = new Dictionary<string, string>();
-            metaData.Add("key1", "key1");
-            metaData.Add("key2", "key2");
-            await shareClient.SetMetadataAsync(metaData);
+            var metadata = new Dictionary<string, string> { {"key1", "value1"}, {"key2", "value2"} };
+            await shareClient.SetMetadataAsync(metadata);
             try
             {
                 // Create Share
