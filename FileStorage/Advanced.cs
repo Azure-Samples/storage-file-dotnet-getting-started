@@ -42,7 +42,7 @@ namespace FileStorage
             Console.WriteLine(string.Empty);
 
             // Create a share service client for interacting with the file service.
-            ShareServiceClient shareServiceClient = new ShareServiceClient(storageConnectionString);
+            var shareServiceClient = new ShareServiceClient(storageConnectionString);
 
             // List shares
             await ListSharesSample(shareServiceClient);
