@@ -536,9 +536,7 @@ namespace FileStorage
 
                 // Set file metadata
                 Console.WriteLine("Set file metadata");
-                Dictionary<string, string> metadata = new Dictionary<string, string>();
-                metadata.Add("key1", "value1");
-                metadata.Add("key2", "value2");
+                var metadata = new Dictionary<string, string> { {"key1", "value1"}, {"key2", "value2"} };
 
                 await file.SetMetadataAsync(metadata);
 
