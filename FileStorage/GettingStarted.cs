@@ -235,7 +235,7 @@ namespace FileStorage
                 Console.WriteLine("Copying file to blob storage. Container name = {0}", shareName);
 
                 // First get a blob service client. 
-                BlobServiceClient blobServiceClient = new BlobServiceClient(storageConnectionString);
+                var blobServiceClient = new BlobServiceClient(storageConnectionString);
 
                 // Get a blob container client and create it if it doesn't already exist.
                 blobContainer = blobServiceClient.GetBlobContainerClient(shareName);
