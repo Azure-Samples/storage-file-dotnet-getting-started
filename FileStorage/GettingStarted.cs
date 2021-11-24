@@ -62,7 +62,7 @@ namespace FileStorage
                 Console.WriteLine("Instantiating file client.");
 
                 // Create a share client for interacting with the file service.
-                ShareServiceClient shareServiceClient = new ShareServiceClient(storageConnectionString);
+                var shareServiceClient = new ShareServiceClient(storageConnectionString);
 
                 // Create the share name -- use a guid in the name so it's unique.
                 // This will also be used as the container name for blob storage when copying the file to blob storage.
