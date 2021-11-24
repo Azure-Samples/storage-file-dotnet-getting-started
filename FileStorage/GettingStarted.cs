@@ -253,7 +253,7 @@ namespace FileStorage
                 // Note that when you are copying a file to a blob, or a blob to a file, you must use a SAS
                 // to authenticate access to the source object, even if you are copying within the same
                 // storage account.
-                AccountSasBuilder sas = new AccountSasBuilder
+                var sas = new AccountSasBuilder
                 {
                     // Allow access to Files
                     Services = AccountSasServices.Files,
