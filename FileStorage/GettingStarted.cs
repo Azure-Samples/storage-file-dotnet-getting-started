@@ -266,7 +266,7 @@ namespace FileStorage
                 };
                 sas.SetPermissions(AccountSasPermissions.Read);
 
-                StorageSharedKeyCredential credential = new StorageSharedKeyCredential(storageAccountName, storageAccountKey);
+                var credential = new StorageSharedKeyCredential(storageAccountName, storageAccountKey);
 
                 // Build a SAS URI
                 UriBuilder sasUri = new UriBuilder(shareFileClient.Uri)
