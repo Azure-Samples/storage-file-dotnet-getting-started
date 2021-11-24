@@ -122,7 +122,7 @@ namespace FileStorage
                 var shareList = shareServiceClient.GetSharesAsync();
                 try
                 {
-                    await foreach (ShareItem Share in shareList)
+                    await foreach (ShareItem share in shareList)
                     {
                         Console.WriteLine("Cloud Share name = {0}", Share.Name);
                     }
