@@ -124,7 +124,7 @@ namespace FileStorage
                 {
                     await foreach (ShareItem share in shareList)
                     {
-                        Console.WriteLine("Cloud Share name = {0}", Share.Name);
+                        Console.WriteLine("Cloud Share name = {0}", share.Name);
                     }
                 }
                 catch (Exception ex)
