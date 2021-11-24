@@ -269,7 +269,7 @@ namespace FileStorage
                 var credential = new StorageSharedKeyCredential(storageAccountName, storageAccountKey);
 
                 // Build a SAS URI
-                UriBuilder sasUri = new UriBuilder(shareFileClient.Uri)
+                var sasUri = new UriBuilder(shareFileClient.Uri)
                 {
                     Query = sas.ToSasQueryParameters(credential).ToString()
                 };
