@@ -371,7 +371,7 @@ namespace FileStorage
 
                     // Write the stream to the file starting at startOffset for the length of the stream.
                     Console.WriteLine("Write second range to file.");
-                    HttpRange range = new HttpRange(startOffset, textToStream.Length);
+                    var range = new HttpRange(startOffset, textToStream.Length);
                     await shareFileClient.UploadRangeAsync(range, ms);
                     Console.WriteLine("    Successful writing second range to file.");
 
